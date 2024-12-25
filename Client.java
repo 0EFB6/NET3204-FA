@@ -229,7 +229,7 @@ public class Client {
             System.out.println("\n=== Comments ===");
             if (post.comments.isEmpty()) System.out.println("No comments yet");
             else for (Comment comment : post.comments) System.out.println(comment.username + ": " + comment.content);
-            System.out.println("\n=== Options ===\n1. Like\n2. Comment\n3. Next post\n4. Return to menu");
+            System.out.println("\n=== Options ===\n1. Like\n2. Comment\n3. Share\n4. Next post\n5. Return to menu");
             System.out.print("Choose option: ");
             int action = scanner.nextInt();
             scanner.nextLine();
@@ -248,15 +248,18 @@ public class Client {
                 }
                 case 3 -> {
                     cls();
-                    continue;
+                    System.out.println("Sharable link: https://facebook.com/post/" + post.id);
                 }
                 case 4 -> {
+                    cls();
+                    continue;
+                }
+                case 5 -> {
                     cls();
                     return;
                 }
             }
         }
-        cls();
     }
 
     private void viewFriends() throws RemoteException {

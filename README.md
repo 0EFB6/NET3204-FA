@@ -22,7 +22,9 @@ java Client
 **Note:** You may run multiple client simultaneously by opening multiple CLI terminal window.
 
 ## Possible Missing Functions
-- Sharing feature
+- N/A
+
+**Note:** Please suggest any possible feature to be implemented.
 
 ## To-Do List
 - [x] Code all functionalities using Java RMI to support multiple interactive CLI instances
