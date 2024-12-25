@@ -21,6 +21,9 @@ java Client
 
 **Note:** You may run multiple client simultaneously by opening multiple CLI terminal window.
 
+## Possible Missing Functions
+- Sharing feature
+
 ## To-Do List
 - [x] Code all functionalities using Java RMI to support multiple interactive CLI instances
 - [x] Add email and phone detail during registration process (dummy)
