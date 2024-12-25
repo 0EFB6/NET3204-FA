@@ -47,6 +47,7 @@ public class Impl extends UnicastRemoteObject implements Service {
     
     @Override
     public boolean register(String username, String password) throws RemoteException {
+        System.out.println("[LOG] Processing register request for user " + username);
         if (DatabaseManager.userExists(username)) return false;
         boolean success = DatabaseManager.saveUser(username, password);
         if (success) {
@@ -59,6 +60,7 @@ public class Impl extends UnicastRemoteObject implements Service {
     
     @Override
     public boolean login(String username, String password, ClientCallback callback) throws RemoteException {
+        System.out.println("[LOG] Processing login request for user " + username);
         if (DatabaseManager.verifyUser(username, password)) {
             activeClients.put(username, callback);
             friends.put(username, new HashSet<>(DatabaseManager.loadFriends(username)));
@@ -72,6 +74,7 @@ public class Impl extends UnicastRemoteObject implements Service {
 
     @Override
     public boolean sendMessage(String from, String to, String content) throws RemoteException {
+        System.out.println("[LOG] Processing sendMessage request for user " + from + " to " + to);
         if (!DatabaseManager.userExists(to)) return false;
         DatabaseManager.saveConversation(from, to, content);
         DatabaseManager.saveNotification(to, "New message from " + from + ": " + (content.length() > 50 ? content.substring(0, 47) + "..." : content));
@@ -82,6 +85,7 @@ public class Impl extends UnicastRemoteObject implements Service {
 
     @Override
     public boolean deletePost(String username, int postId) throws RemoteException {
+        System.out.println("[LOG] Processing deletePost request for user " + username);
         List<Post> userPosts = posts.get(username);
         if (userPosts != null) {
             boolean removed = userPosts.removeIf(post -> post.id == postId);
@@ -95,6 +99,7 @@ public class Impl extends UnicastRemoteObject implements Service {
     
     @Override
     public boolean editPost(String username, int postId, String newContent) throws RemoteException {
+        System.out.println("[LOG] Processing editPost request for user " + username);
         List<Post> userPosts = posts.get(username);
         if (userPosts != null) {
             for (Post post : userPosts) {
@@ -110,6 +115,7 @@ public class Impl extends UnicastRemoteObject implements Service {
 
     @Override
     public boolean sendFriendRequest(String from, String to) throws RemoteException {
+        System.out.println("[LOG] Processing sendFriendRequest request for user " + from + " to " + to);
         if (!DatabaseManager.userExists(to)) return false;
         DatabaseManager.saveFriendRequest(from, to);
         DatabaseManager.saveNotification(to, from + " sent you a friend request");
@@ -120,6 +126,7 @@ public class Impl extends UnicastRemoteObject implements Service {
 
     @Override
     public boolean acceptFriendRequest(String username, String requester) throws RemoteException {
+        System.out.println("[LOG] Processing acceptFriendRequest request for user " + username);
         List<String> requests = DatabaseManager.loadFriendRequests(username);
         if (requests.contains(requester)) {
             friends.get(username).add(requester);
@@ -137,22 +144,26 @@ public class Impl extends UnicastRemoteObject implements Service {
     
     @Override
     public boolean rejectFriendRequest(String username, String requester) throws RemoteException {
+        System.out.println("[LOG] Processing rejectFriendRequest request for user " + username);
         DatabaseManager.removeFriendRequest(username, requester);
         return true;
     }
 
     @Override
     public List<String> getFriendList(String username) throws RemoteException {
+        System.out.println("[LOG] Processing getFriendList request for user " + username);
         return new ArrayList<>(friends.get(username));
     }
 
     @Override
     public List<Post> getNewsFeed(String username) throws RemoteException {
         try {
+            System.out.println("[LOG] Processing getNewsFeed request for user " + username);
             List<Post> newsFeed = new ArrayList<>();
             Set<String> userFriends = friends.get(username);
             for (String friend : userFriends) newsFeed.addAll(posts.get(friend));
             newsFeed.sort((p1, p2) -> p2.id - p1.id);
+            
             return newsFeed;
         }
         catch (Exception e) {
@@ -162,26 +173,31 @@ public class Impl extends UnicastRemoteObject implements Service {
 
     @Override
     public List<Message> getMessages(String username, String friend) throws RemoteException {
+        System.out.println("[LOG] Processing getMessages request for user " + username + " from " + friend);
         return DatabaseManager.loadConversation(username, friend);
     }
 
     @Override
     public List<String> getNotifications(String username) throws RemoteException {
+        System.out.println("[LOG] Processing getNotifications request for user " + username);
         return DatabaseManager.loadNotifications(username);
     }
     
     @Override
     public List<String> getPendingFriendRequests(String username) throws RemoteException {
+        System.out.println("[LOG] Processing getPendingFriendRequests request for user " + username);
         return DatabaseManager.loadFriendRequests(username);
     }
 
     @Override
     public List<Post> getUserPosts(String username) throws RemoteException {
+        System.out.println("[LOG] Processing getUserPosts request for user " + username);
         return posts.getOrDefault(username, new ArrayList<>());
     }
 
     @Override
     public int createPost(String username, String content) throws RemoteException {
+        System.out.println("[LOG] Processing createPost request for user " + username);
         Post post = new Post(nextPostId++, username, content);
         posts.computeIfAbsent(username, k -> new ArrayList<>()).add(post);
         DatabaseManager.savePost(username, post);
@@ -198,11 +214,13 @@ public class Impl extends UnicastRemoteObject implements Service {
 
     @Override
     public void logout(String username) throws RemoteException {
+        System.out.println("[LOG] Logging out user " + username);
         activeClients.remove(username);
     }
 
     @Override
     public void likePost(String username, int postId) throws RemoteException {
+        System.out.println("[LOG] Processing likePost request for user " + username);
         for (List<Post> userPosts : posts.values()) {
             for (Post post : userPosts) {
                 if (post.id == postId) {
@@ -220,6 +238,7 @@ public class Impl extends UnicastRemoteObject implements Service {
     
     @Override
     public void commentPost(String username, int postId, String comment) throws RemoteException {
+        System.out.println("[LOG] Processing commentPost request for user " + username);
         if (comment == null || comment.trim().isEmpty()) {
             System.out.println("Error: Comment cannot be empty.");
             return;
