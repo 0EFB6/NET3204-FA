@@ -1,0 +1,52 @@
+Client.java
+private void displayConversation(String friend) throws RemoteException {
+        List<Message> messages = service.getMessages(currentUser, friend);
+        if (messages.isEmpty()) {
+            System.out.println("No messages with " + friend + " yet!");
+        } else {
+            System.out.println("\n=== Conversation with " + friend + " ===");
+            for (Message msg : messages) {
+                String prefix = msg.from.equals(currentUser) ? "You" : friend;
+                System.out.println(prefix + ": " + msg.content);
+            }
+        }
+        
+        System.out.println("\n1. Send message\n2. Return to menu");
+        System.out.print("Choose option: ");
+        int choice = scanner.nextInt();
+        scanner.nextLine();
+        
+        if (choice == 1) {
+            System.out.print("Enter message: ");
+            String message = scanner.nextLine();
+            if (service.sendMessage(currentUser, friend, message)) {
+                System.out.println("Message sent successfully!");
+            }
+        }
+    }
+
+Impl.java
+public List<Message> getMessages(String username) throws RemoteException {
+        return DatabaseManager.loadMessages(username);
+    }
+
+DatabaseManager.java
+static List<Message> loadMessages(String username) {
+        List<Message> messages = new ArrayList<>();
+        try {
+            Path path = Paths.get(DATA_DIR + username + "_messages.txt");
+            if (Files.exists(path)) {
+                Files.lines(path).forEach(line -> {
+                    String[] parts = line.split(":", 2);
+                    messages.add(new Message(parts[0], username, parts[1], timestamp));
+                });
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return messages;
+    }
+
+cannot find symbolsymbol: variable timestamplocation: class DatabaseManager(errors(1): 117:76-117:85)
+
+Fix all possible error.

@@ -1,0 +1,686 @@
+DatabaseManager.java
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+class DatabaseManager {
+    private static final String DATA_DIR = "facebook_data/";
+    
+    static {
+        new File(DATA_DIR).mkdirs();
+    }
+    
+    static boolean saveUser(String username, String password) {
+        try {
+            Files.write(Paths.get(DATA_DIR + "users.txt"), 
+                       (username + ":" + password + "\n").getBytes(),
+                       StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    static boolean userExists(String username) {
+        try {
+            return Files.lines(Paths.get(DATA_DIR + "users.txt"))
+                       .anyMatch(line -> line.split(":")[0].equals(username));
+        } catch (IOException e) {
+            return false;
+        }
+    }
+    
+    static boolean verifyUser(String username, String password) {
+        try {
+            return Files.lines(Paths.get(DATA_DIR + "users.txt"))
+                       .anyMatch(line -> line.equals(username + ":" + password));
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    static void saveFriend(String username, String friend) {
+        try {
+            Files.write(Paths.get(DATA_DIR + username + "_friends.txt"),
+                       (friend + "\n").getBytes(),
+                       StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    static Set<String> loadFriends(String username) {
+        Set<String> friends = new HashSet<>();
+        try {
+            Path path = Paths.get(DATA_DIR + username + "_friends.txt");
+            if (Files.exists(path)) {
+                Files.lines(path).forEach(friends::add);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return friends;
+    }
+    
+    static void savePost(String username, Post post) {
+        try {
+            String postData = post.id + ":" + post.timestamp + ":" + post.content + "\n";
+            Files.write(Paths.get(DATA_DIR + username + "_posts.txt"),
+                       postData.getBytes(),
+                       StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    static List<Post> loadPosts(String username) {
+        List<Post> posts = new ArrayList<>();
+        try {
+            Path path = Paths.get(DATA_DIR + username + "_posts.txt");
+            if (Files.exists(path)) {
+                Files.lines(path).forEach(line -> {
+                    String[] parts = line.split(":", 3);
+                    if (parts.length == 3) {
+                        Post post = new Post(
+                            Integer.parseInt(parts[0]),
+                            username,
+                            parts[2]
+                        );
+                        post.timestamp = Long.parseLong(parts[1]);
+                        posts.add(post);
+                    }
+                });
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return posts;
+    }
+
+    static void saveConversation(String sender, String receiver, String content) {
+        try {
+            // Save message in conversation file
+            String message = System.currentTimeMillis() + ":" + sender + ":" + content + "\n";
+            String conversationFile = getConversationFileName(sender, receiver);
+            
+            Files.write(Paths.get(DATA_DIR + conversationFile),
+                       message.getBytes(),
+                       StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    static List<Message> loadConversation(String user1, String user2) {
+        List<Message> messages = new ArrayList<>();
+        try {
+            String conversationFile = getConversationFileName(user1, user2);
+            Path path = Paths.get(DATA_DIR + conversationFile);
+            if (Files.exists(path)) {
+                List<String> lines = Files.readAllLines(path);
+                for (String line : lines) {
+                    String[] parts = line.split(":", 3);
+                    if (parts.length == 3) {
+                        long timestamp = Long.parseLong(parts[0]);
+                        String sender = parts[1];
+                        String content = parts[2];
+                        messages.add(new Message(sender, sender.equals(user1) ? user2 : user1, content, timestamp));
+                    }
+                }
+                // Sort messages by timestamp
+                messages.sort((m1, m2) -> Long.compare(m1.timestamp, m2.timestamp));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return messages;
+    }
+    
+    // static void saveMessage(String to, Message msg) {
+    //     try {
+    //         Files.write(Paths.get(DATA_DIR + to + "_messages.txt"),
+    //                    (msg.from + ":" + msg.content + "\n").getBytes(),
+    //                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+    //     } catch (IOException e) {
+    //         e.printStackTrace();
+    //     }
+    // }
+    
+    // static List<Message> loadMessages(String username) {
+    //     List<Message> messages = new ArrayList<>();
+    //     try {
+    //         Path path = Paths.get(DATA_DIR + username + "_messages.txt");
+    //         if (Files.exists(path)) {
+    //             Files.lines(path).forEach(line -> {
+    //                 String[] parts = line.split(":", 2);
+    //                 messages.add(new Message(parts[0], username, parts[1], timestamp));
+    //             });
+    //         }
+    //     } catch (IOException e) {
+    //         e.printStackTrace();
+    //     }
+    //     return messages;
+    // }
+
+    static void updatePost(String username, Post post) {
+        Path path = Paths.get(DATA_DIR + username + "_posts.txt");
+        List<String> updatedPosts = new ArrayList<>();
+    
+        try {
+            if (Files.exists(path)) {
+                List<String> lines = Files.readAllLines(path);
+                for (String line : lines) {
+                    // Use split with a limit of 2 to avoid splitting the content
+                    String[] parts = line.split(":", 2); 
+                    
+                    // Check if the line has the expected format
+                    if (parts.length < 2) {
+                        continue; // Skip lines that are malformed
+                    }
+                    
+                    int postId = Integer.parseInt(parts[0]);
+                    
+                    // If the post ID matches, update the post content
+                    if (postId == post.id) {
+                        // Include likes and comments in the updated content (optional)
+                        String updatedPost = post.id + ":" + post.content + "\n";
+                        updatedPosts.add(updatedPost);
+                    } else {
+                        updatedPosts.add(line + "\n");
+                    }
+                }
+    
+                // Write the updated post data to the file
+                Files.write(path, updatedPosts, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    static void saveFriendRequest(String from, String to) {
+        try {
+            String requestFile = DATA_DIR + to + "_friendRequests.txt";
+            // Check if request already exists
+            if (Files.exists(Paths.get(requestFile))) {
+                List<String> requests = Files.readAllLines(Paths.get(requestFile));
+                if (requests.contains(from)) {
+                    return;
+                }
+            }
+            Files.write(Paths.get(requestFile),
+                       (from + "\n").getBytes(),
+                       StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    static List<String> loadFriendRequests(String username) {
+        List<String> requests = new ArrayList<>();
+        try {
+            Path path = Paths.get(DATA_DIR + username + "_friendRequests.txt");
+            if (Files.exists(path)) {
+                requests = Files.readAllLines(path);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return requests;
+    }
+        
+    static void removeFriendRequest(String to, String from) {
+        try {
+            String requestFile = DATA_DIR + to + "_friendRequests.txt";
+            if (Files.exists(Paths.get(requestFile))) {
+                List<String> requests = Files.readAllLines(Paths.get(requestFile));
+                requests.remove(from);
+                Files.write(Paths.get(requestFile), requests, StandardOpenOption.TRUNCATE_EXISTING);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    static void saveNotification(String username, String notification) {
+        try {
+            Files.write(Paths.get(DATA_DIR + username + "_notifications.txt"),
+                       (System.currentTimeMillis() + ":" + notification + "\n").getBytes(),
+                       StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    static List<String> loadNotifications(String username) {
+        List<String> notifications = new ArrayList<>();
+        try {
+            Path path = Paths.get(DATA_DIR + username + "_notifications.txt");
+            if (Files.exists(path)) {
+                List<String> lines = Files.readAllLines(path);
+                for (String line : lines) {
+                    String[] parts = line.split(":", 2);
+                    if (parts.length == 2) {
+                        notifications.add(parts[1]);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return notifications;
+    }
+    
+    static boolean deletePost(String username, int postId) {
+        Path path = Paths.get(DATA_DIR + username + "_posts.txt");
+        try {
+            if (Files.exists(path)) {
+                List<String> posts = Files.readAllLines(path);
+                List<String> updatedPosts = posts.stream()
+                    .filter(line -> !line.startsWith(postId + ":"))
+                    .collect(Collectors.toList());
+                Files.write(path, updatedPosts, StandardOpenOption.TRUNCATE_EXISTING);
+                return true;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    static void initializeData() {
+        try {
+            Path usersFile = Paths.get(DATA_DIR + "users.txt");
+            if (Files.exists(usersFile)) {
+                Files.lines(usersFile).forEach(line -> {
+                    String username = line.split(":")[0];
+                    // Create directories for user data if they don't exist
+                    new File(DATA_DIR + username).mkdirs();
+                });
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    // static void saveConversation(String sender, String receiver, String content) {
+    //     try {
+    //         // Save message in both users' conversation files
+    //         String message = System.currentTimeMillis() + ":" + sender + ":" + content + "\n";
+    //         String conversationFile = getConversationFileName(sender, receiver);
+            
+    //         Files.write(Paths.get(DATA_DIR + conversationFile),
+    //                    message.getBytes(),
+    //                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+    //     } catch (IOException e) {
+    //         e.printStackTrace();
+    //     }
+    // }
+    
+    // static List<Message> loadConversation(String user1, String user2) {
+    //     List<Message> messages = new ArrayList<>();
+    //     try {
+    //         String conversationFile = getConversationFileName(user1, user2);
+    //         Path path = Paths.get(DATA_DIR + conversationFile);
+    //         if (Files.exists(path)) {
+    //             List<String> lines = Files.readAllLines(path);
+    //             for (String line : lines) {
+    //                 String[] parts = line.split(":", 3);
+    //                 long timestamp = Long.parseLong(parts[0]);
+    //                 String sender = parts[1];
+    //                 String content = parts[2];
+    //                 messages.add(new Message(sender, sender.equals(user1) ? user2 : user1, content, timestamp));
+    //             }
+    //         }
+    //     } catch (IOException e) {
+    //         e.printStackTrace();
+    //     }
+    //     return messages;
+    // }
+    
+    private static String getConversationFileName(String user1, String user2) {
+        // Ensure consistent filename regardless of who is sender/receiver
+        return (user1.compareTo(user2) < 0) ? 
+            user1 + "_" + user2 + "_conversation.txt" :
+            user2 + "_" + user1 + "_conversation.txt";
+    }
+    
+}
+
+Impl.java
+import java.rmi.RemoteException;
+import java.rmi.server.UnicastRemoteObject;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class Impl extends UnicastRemoteObject implements Service {
+    private Map<String, ClientCallback> activeClients = new ConcurrentHashMap<>();
+    private Map<String, Set<String>> friends;
+    private Map<String, List<Post>> posts;
+    private Map<String, List<String>> notifications;
+    private int nextPostId = 1;
+    private Map<String, List<String>> pendingFriendRequests;
+    
+    public Impl() throws RemoteException {
+        super();
+        friends = new ConcurrentHashMap<>();
+        posts = new ConcurrentHashMap<>();
+        notifications = new ConcurrentHashMap<>();
+        pendingFriendRequests = new ConcurrentHashMap<>();
+        DatabaseManager.initializeData();
+    }
+    
+    public boolean register(String username, String password) throws RemoteException {
+        boolean success = DatabaseManager.saveUser(username, password);
+        if (success) {
+            friends.put(username, new HashSet<>());
+            posts.put(username, new ArrayList<>());
+            notifications.put(username, new ArrayList<>());
+        }
+        return success;
+    }
+    
+    public boolean login(String username, String password, ClientCallback callback) throws RemoteException {
+        if (DatabaseManager.verifyUser(username, password)) {
+            activeClients.put(username, callback);
+            
+            // Load user data from database
+            friends.put(username, new HashSet<>(DatabaseManager.loadFriends(username)));
+            posts.put(username, new ArrayList<>(DatabaseManager.loadPosts(username)));
+            notifications.put(username, new ArrayList<>(DatabaseManager.loadNotifications(username)));
+            pendingFriendRequests.put(username, new ArrayList<>(DatabaseManager.loadFriendRequests(username)));
+            
+            return true;
+        }
+        return false;
+    }
+    
+    public void logout(String username) throws RemoteException {
+        activeClients.remove(username);
+    }
+
+    public boolean addFriend(String username, String friendUsername) throws RemoteException {
+        if (!DatabaseManager.userExists(friendUsername)) return false;
+        friends.get(username).add(friendUsername);
+        DatabaseManager.saveFriend(username, friendUsername);
+        
+        ClientCallback friendCallback = activeClients.get(friendUsername);
+        if (friendCallback != null) {
+            friendCallback.notifyNewNotification(username + " added you as a friend");
+        }
+        return true;
+    }
+
+    public List<String> getFriendList(String username) throws RemoteException {
+        return new ArrayList<>(friends.get(username));
+    }
+
+    public int createPost(String username, String content) throws RemoteException {
+        Post post = new Post(nextPostId++, username, content);
+        posts.computeIfAbsent(username, k -> new ArrayList<>()).add(post);
+        DatabaseManager.savePost(username, post);
+        
+        // Notify friends
+        for (String friend : friends.get(username)) {
+            ClientCallback friendCallback = activeClients.get(friend);
+            if (friendCallback != null) {
+                friendCallback.notifyNewPost(username, content);
+            }
+        }
+        return post.id;
+    }
+
+    public List<Post> getNewsFeed(String username) throws RemoteException {
+        List<Post> newsFeed = new ArrayList<>();
+        Set<String> userFriends = friends.get(username);
+        for (String friend : userFriends) {
+            newsFeed.addAll(posts.get(friend));
+        }
+        newsFeed.sort((p1, p2) -> p2.id - p1.id);
+        return newsFeed;
+    }
+
+    public boolean sendMessage(String from, String to, String content) throws RemoteException {
+        if (!DatabaseManager.userExists(to)) return false;
+        
+        DatabaseManager.saveConversation(from, to, content);
+        
+        ClientCallback recipient = activeClients.get(to);
+        if (recipient != null) {
+            recipient.notifyNewMessage(from, content);
+        }
+        return true;
+    }
+
+    public List<Message> getMessages(String username, String friend) throws RemoteException {
+        return DatabaseManager.loadConversation(username, friend);
+    }
+
+    public void likePost(String username, int postId) throws RemoteException {
+        for (List<Post> userPosts : posts.values()) {
+            for (Post post : userPosts) {
+                if (post.id == postId) {
+                    // Check if the user has already liked the post
+                    if (post.likes.contains(username)) {
+                        System.out.println("User has already liked this post.");
+                        return;  // Do nothing if already liked
+                    }
+                    
+                    // Add the like if not already liked
+                    post.likes.add(username);
+                    DatabaseManager.updatePost(post.username, post);
+                    
+                    // Notify post owner if online
+                    ClientCallback ownerCallback = activeClients.get(post.username);
+                    if (ownerCallback != null) {
+                        ownerCallback.notifyNewNotification(username + " liked your post");
+                    }
+                    return;
+                }
+            }
+        }
+    }
+    
+    
+    public void commentPost(String username, int postId, String comment) throws RemoteException {
+        if (comment == null || comment.trim().isEmpty()) {
+            System.out.println("Error: Comment cannot be empty.");
+            return; // or throw an exception if preferred
+        }
+    
+        for (List<Post> userPosts : posts.values()) {
+            for (Post post : userPosts) {
+                if (post.id == postId) {
+                    // Add comment only if it's valid
+                    post.comments.add(new Comment(username, comment));
+                    DatabaseManager.updatePost(post.username, post);
+                    
+                    // Notify post owner if online
+                    ClientCallback ownerCallback = activeClients.get(post.username);
+                    if (ownerCallback != null) {
+                        ownerCallback.notifyNewNotification(username + " commented on your post");
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
+    public boolean sendFriendRequest(String from, String to) throws RemoteException {
+        if (!DatabaseManager.userExists(to)) return false;
+        
+        DatabaseManager.saveFriendRequest(from, to);
+        DatabaseManager.saveNotification(to, from + " sent you a friend request");
+        
+        ClientCallback recipientCallback = activeClients.get(to);
+        if (recipientCallback != null) {
+            recipientCallback.notifyNewNotification(from + " sent you a friend request");
+        }
+        return true;
+    }
+    
+    public List<String> getPendingFriendRequests(String username) throws RemoteException {
+        return DatabaseManager.loadFriendRequests(username);
+    }
+    
+    public boolean acceptFriendRequest(String username, String requester) throws RemoteException {
+        List<String> requests = DatabaseManager.loadFriendRequests(username);
+        if (requests.contains(requester)) {
+            // Add to both users' friend lists
+            friends.get(username).add(requester);
+            friends.get(requester).add(username);
+            
+            // Save to database
+            DatabaseManager.saveFriend(username, requester);
+            DatabaseManager.saveFriend(requester, username);
+            
+            // Remove the friend request
+            DatabaseManager.removeFriendRequest(username, requester);
+            
+            // Notify the requester
+            DatabaseManager.saveNotification(requester, username + " accepted your friend request");
+            ClientCallback requesterCallback = activeClients.get(requester);
+            if (requesterCallback != null) {
+                requesterCallback.notifyNewNotification(username + " accepted your friend request");
+            }
+            return true;
+        }
+        return false;
+    }
+    
+    public boolean rejectFriendRequest(String username, String requester) throws RemoteException {
+        DatabaseManager.removeFriendRequest(username, requester);
+        return true;
+    }
+
+    public List<String> getNotifications(String username) throws RemoteException {
+        return DatabaseManager.loadNotifications(username);
+    }
+
+    
+    public List<Post> getUserPosts(String username) throws RemoteException {
+        return posts.getOrDefault(username, new ArrayList<>());
+    }
+    
+    public boolean deletePost(String username, int postId) throws RemoteException {
+        List<Post> userPosts = posts.get(username);
+        if (userPosts != null) {
+            boolean removed = userPosts.removeIf(post -> post.id == postId);
+            if (removed) {
+                DatabaseManager.deletePost(username, postId);
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    public boolean editPost(String username, int postId, String newContent) throws RemoteException {
+        List<Post> userPosts = posts.get(username);
+        if (userPosts != null) {
+            for (Post post : userPosts) {
+                if (post.id == postId) {
+                    post.content = newContent;
+                    DatabaseManager.updatePost(username, post);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+}
+
+Service.java
+import java.rmi.Remote;
+import java.rmi.RemoteException;
+import java.util.ArrayList;
+import java.util.List;
+
+interface Service extends Remote {
+    boolean register(String username, String password) throws RemoteException;
+    boolean login(String username, String password, ClientCallback callback) throws RemoteException;
+    void logout(String username) throws RemoteException;
+    // boolean addFriend(String username, String friendUsername) throws RemoteException;
+    List<String> getFriendList(String username) throws RemoteException;
+    int createPost(String username, String content) throws RemoteException;
+    List<Post> getNewsFeed(String username) throws RemoteException;
+    boolean sendMessage(String from, String to, String content) throws RemoteException;
+    List<Message> getMessages(String username, String friend) throws RemoteException;
+    void likePost(String username, int postId) throws RemoteException;
+    void commentPost(String username, int postId, String comment) throws RemoteException;
+
+    // List<String> getPendingFriendRequests(String username) throws RemoteException;
+    // boolean sendFriendRequest(String from, String to) throws RemoteException;
+    // boolean acceptFriendRequest(String username, String requester) throws RemoteException;
+    // boolean rejectFriendRequest(String username, String requester) throws RemoteException;
+    List<String> getNotifications(String username) throws RemoteException;
+    boolean deletePost(String username, int postId) throws RemoteException;
+    boolean editPost(String username, int postId, String newContent) throws RemoteException;
+
+    boolean sendFriendRequest(String from, String to) throws RemoteException; // Add this instead
+    List<String> getPendingFriendRequests(String username) throws RemoteException;
+    boolean acceptFriendRequest(String username, String requester) throws RemoteException;
+    boolean rejectFriendRequest(String username, String requester) throws RemoteException;
+    List<Post> getUserPosts(String username) throws RemoteException; // Add this for post management
+}
+
+
+// Data classes
+class Post implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
+    int id;
+    String username;
+    String content;
+    List<String> likes = new ArrayList<>();
+    List<Comment> comments = new ArrayList<>();
+    long timestamp;
+    
+    Post(int id, String username, String content) {
+        this.id = id;
+        this.username = username;
+        this.content = content;
+        this.timestamp = System.currentTimeMillis();
+    }
+}
+
+class Comment implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
+    String username;
+    String content;
+    
+    Comment(String username, String content) {
+        this.username = username;
+        this.content = content;
+    }
+}
+
+class Message implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
+    String from;
+    String to;
+    String content;
+    long timestamp;
+    
+    Message(String from, String to, String content, long timestamp) {
+        this.from = from;
+        this.to = to;
+        this.content = content;
+        this.timestamp = timestamp;
+    }
+}
+
+1) Notification database is not updated when user send a new message or new post is posted by friends However, it is updated after a friend request is sent.
+
+Perhaps the saveNotification function doesn't support append? Help me fix that, so when my viewNotification function is called, I can see a lit of notification sort based on timestamp, if possible, print out the timestamp too.
